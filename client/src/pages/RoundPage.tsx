@@ -73,8 +73,13 @@ const RoundPage: React.FC = () => {
       if (response.score > tapCount) {
         setTapCount(response.score);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error performing tap:', err);
+      // Показываем ошибку если раунд не активен
+      if (err.message && err.message.includes('not active')) {
+        setError('Раунд не активен. Тапать можно только в активном раунде.');
+        setTimeout(() => setError(null), 3000);
+      }
     } finally {
       setTimeout(() => setIsTapping(false), 100); // Небольшая задержка для визуального эффекта
     }
@@ -175,7 +180,7 @@ const RoundPage: React.FC = () => {
         <button onClick={() => navigate('/')} className="back-button">
           ← Вернуться к списку раундов
         </button>
-        <h1>Раунд к={needReloadOnFinish} {round.uuid.slice(0, 8)}</h1>
+        <h1>Раунд {round.uuid.slice(0, 8)}</h1>
       </div>
 
       <div className="round-info">

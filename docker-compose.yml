@@ -1,0 +1,75 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: eng-test-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: eng_test
+    ports:
+      - "6543:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - eng-test-network
+
+  # Backend (NestJS)
+  backend:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: eng-test-backend
+    environment:
+      DB_URI: postgresql://postgres:postgres@postgres:5432/eng_test
+      PORT: 3000
+      JWT_SECRET: your-secret-key-change-in-production
+      COOLDOWN_DURATION: 30
+      ROUND_DURATION: 60
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3000/rounds', (res) => process.exit(res.statusCode === 200 || res.statusCode === 401 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - eng-test-network
+    restart: unless-stopped
+
+  # Frontend (React + Vite)
+  frontend:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    container_name: eng-test-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - eng-test-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  eng-test-network:
+    driver: bridge

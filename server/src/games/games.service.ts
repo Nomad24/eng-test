@@ -17,8 +17,15 @@ export class GamesService {
     private userModel: typeof User,
   ) {}
 
-  async getAllRounds(): Promise<Round[]> {
-    return this.roundModel.findAll();
+  async getAllRoundsWithStatus(): Promise<any[]> {
+    const rounds = await this.roundModel.findAll();
+    return rounds.map(round => {
+      const status = this.getRoundStatus(round);
+      return {
+        ...round.toJSON(),
+        status
+      };
+    });
   }
 
   async getRoundByUuid(uuid: string): Promise<Round | null> {
@@ -69,10 +76,24 @@ export class GamesService {
   }
 
   scoreFromTapsCount(taps: number) {
-    return Math.floor(taps / 11) * 9 + taps;
+    // 1 тап = 1 очко, каждый 11-й тап дает 10 очков (вместо 1)
+    // Для 11 тапов: 10 * 1 + 1 * 10 = 20 очков
+    const regularPoints = taps;
+    const bonusPoints = Math.floor(taps / 11) * 9; // +9 к базовому 1 за каждый 11-й
+    return regularPoints + bonusPoints;
   }
 
   async processTap(userId: string, roundUuid: string, role: string): Promise<{ score: number }> {
+    // Получаем раунд и проверяем что он активен
+    const round = await this.roundModel.findByPk(roundUuid);
+    if (!round) {
+      throw new Error('Round not found');
+    }
+    
+    if (!this.isRoundActive(round)) {
+      throw new Error('Round is not active');
+    }
+
     if (role != 'nikita') {
       // Обновить запись в таблице score
       await this.scoreModel.increment('taps', {
@@ -84,15 +105,15 @@ export class GamesService {
       });
     }
 
-      const scoreRecord = await this.scoreModel.findOne({
-        where: {
-          user: userId,
-          round: roundUuid,
-        },
-      });
-      const score = this.scoreFromTapsCount(scoreRecord.taps);
+    const scoreRecord = await this.scoreModel.findOne({
+      where: {
+        user: userId,
+        round: roundUuid,
+      },
+    });
+    const score = this.scoreFromTapsCount(scoreRecord.taps);
 
-      return { score };
+    return { score };
   }
 
   async getRoundSummary(roundUuid: string): Promise<{
@@ -137,8 +158,24 @@ export class GamesService {
     };
   }
 
+  isRoundActive(round: Round): boolean {
+    const now = new Date();
+    return now >= round.start_datetime && now <= round.end_datetime;
+  }
+
   isRoundFinished(round: Round): boolean {
     const now = new Date();
     return now >= round.end_datetime;
+  }
+
+  getRoundStatus(round: Round): 'scheduled' | 'active' | 'completed' {
+    const now = new Date();
+    if (now < round.start_datetime) {
+      return 'scheduled';
+    } else if (now >= round.start_datetime && now < round.end_datetime) {
+      return 'active';
+    } else {
+      return 'completed';
+    }
   }
 }

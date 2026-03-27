@@ -19,7 +19,7 @@ export class GamesController {
   @Get('rounds')
   @UseGuards(AuthGuard('jwt'))
   async getAllRounds(): Promise<RoundsResponse> {
-    return this.gamesService.getAllRounds();
+    return this.gamesService.getAllRoundsWithStatus();
   }
 
   @Get('round/:uuid')
@@ -30,10 +30,17 @@ export class GamesController {
       return { error: 'Round not found' } as any;
     }
 
+    // Обновляем статус раунда динамически
+    const roundStatus = this.gamesService.getRoundStatus(round);
+    const roundWithStatus = {
+      ...round.toJSON(),
+      status: roundStatus
+    };
+
     const score = await this.gamesService.getOrCreateScoreByUserAndRound(req.user.sub, uuid);
 
     const baseResponse: RoundWithScore = {
-      round: round,
+      round: roundWithStatus,
     };
 
     // Если раунд завершен, добавляем дополнительную информацию

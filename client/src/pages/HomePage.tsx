@@ -72,7 +72,7 @@ export const HomePage: React.FC = () => {
         return '#28a745';
       case 'completed':
         return '#6c757d';
-      case 'pending':
+      case 'scheduled':
         return '#ffc107';
       default:
         return '#007bff';
